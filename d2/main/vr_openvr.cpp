@@ -34,6 +34,10 @@ static uint32_t vr_render_height = 0;
 static GLint vr_prev_fbo = 0;
 static GLint vr_prev_viewport[4] = {0, 0, 0, 0};
 static float vr_eye_offset_adjust_m = 0.0f;
+static int vr_current_eye = -1;
+static bool vr_has_pose = false;
+static vms_matrix vr_head_orient = vmd_identity_matrix;
+static vms_vector vr_head_pos = {0, 0, 0};
 
 static void vr_openvr_release_gl(void)
 {
@@ -255,6 +259,27 @@ void vr_openvr_begin_frame(void)
 
 	vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
 	vr_compositor->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, NULL, 0);
+	if (poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)
+	{
+		const vr::HmdMatrix34_t &mat = poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
+		vr_head_orient.rvec.x = fl2f(mat.m[0][0]);
+		vr_head_orient.rvec.y = fl2f(mat.m[1][0]);
+		vr_head_orient.rvec.z = fl2f(mat.m[2][0]);
+		vr_head_orient.uvec.x = fl2f(mat.m[0][1]);
+		vr_head_orient.uvec.y = fl2f(mat.m[1][1]);
+		vr_head_orient.uvec.z = fl2f(mat.m[2][1]);
+		vr_head_orient.fvec.x = fl2f(mat.m[0][2]);
+		vr_head_orient.fvec.y = fl2f(mat.m[1][2]);
+		vr_head_orient.fvec.z = fl2f(mat.m[2][2]);
+		vr_head_pos.x = fl2f(mat.m[0][3]);
+		vr_head_pos.y = fl2f(mat.m[1][3]);
+		vr_head_pos.z = fl2f(mat.m[2][3]);
+		vr_has_pose = true;
+	}
+	else
+	{
+		vr_has_pose = false;
+	}
 #endif
 }
 
@@ -284,6 +309,66 @@ void vr_openvr_adjust_eye_offset(float delta_meters)
 	vr_eye_offset_adjust_m += delta_meters;
 #else
 	(void)delta_meters;
+#endif
+}
+
+int vr_openvr_eye_projection(int eye, float *left, float *right, float *bottom, float *top)
+{
+#ifdef USE_OPENVR
+	if (!vr_openvr_active() || !vr_system)
+		return 0;
+
+	vr::Hmd_Eye vr_eye = (eye == 0) ? vr::Eye_Left : vr::Eye_Right;
+	float l = 0.0f;
+	float r = 0.0f;
+	float t = 0.0f;
+	float b = 0.0f;
+	vr_system->GetProjectionRaw(vr_eye, &l, &r, &t, &b);
+	if (left)
+		*left = l;
+	if (right)
+		*right = r;
+	if (bottom)
+		*bottom = b;
+	if (top)
+		*top = t;
+	return 1;
+#else
+	(void)eye;
+	(void)left;
+	(void)right;
+	(void)bottom;
+	(void)top;
+	return 0;
+#endif
+}
+
+int vr_openvr_head_pose(vms_matrix *orient, vms_vector *position)
+{
+#ifdef USE_OPENVR
+	if (!vr_openvr_active() || !vr_has_pose)
+		return 0;
+
+	if (orient)
+		*orient = vr_head_orient;
+	if (position)
+		*position = vr_head_pos;
+	return 1;
+#else
+	(void)orient;
+	(void)position;
+	return 0;
+#endif
+}
+
+int vr_openvr_current_eye(void)
+{
+#ifdef USE_OPENVR
+	if (!vr_openvr_active())
+		return -1;
+	return vr_current_eye;
+#else
+	return -1;
 #endif
 }
 
@@ -325,6 +410,7 @@ void vr_openvr_bind_eye(int eye)
 	glGetIntegerv(GL_VIEWPORT, vr_prev_viewport);
 	glBindFramebuffer(GL_FRAMEBUFFER, vr_eye_fbo[eye]);
 	glViewport(0, 0, vr_render_width, vr_render_height);
+	vr_current_eye = eye;
 #else
 	(void)eye;
 #endif
@@ -342,6 +428,7 @@ void vr_openvr_unbind_eye(void)
 
 	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)vr_prev_fbo);
 	glViewport(vr_prev_viewport[0], vr_prev_viewport[1], vr_prev_viewport[2], vr_prev_viewport[3]);
+	vr_current_eye = -1;
 #endif
 #endif
 }
