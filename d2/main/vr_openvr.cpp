@@ -368,10 +368,18 @@ void vr_openvr_submit_mono_from_screen(int curved)
 	vr_openvr_begin_frame();
 	GLint prev_framebuffer = 0;
 	GLint prev_read_buffer = GL_BACK;
+	GLboolean prev_scissor = GL_FALSE;
+	GLint prev_scissor_box[4] = {0, 0, 0, 0};
+	GLint double_buffer = 0;
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_framebuffer);
 	glGetIntegerv(GL_READ_BUFFER, &prev_read_buffer);
+	glGetIntegerv(GL_DOUBLEBUFFER, &double_buffer);
+	prev_scissor = glIsEnabled(GL_SCISSOR_TEST);
+	glGetIntegerv(GL_SCISSOR_BOX, prev_scissor_box);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glReadBuffer(GL_BACK);
+	glReadBuffer(double_buffer ? GL_BACK : GL_FRONT);
+	glDisable(GL_SCISSOR_TEST);
+	glFlush();
 	glBindTexture(GL_TEXTURE_2D, vr_menu_tex);
 	GLint copy_width = (GLint)vr_render_width;
 	GLint copy_height = (GLint)vr_render_height;
@@ -382,6 +390,11 @@ void vr_openvr_submit_mono_from_screen(int curved)
 	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, copy_width, copy_height);
 	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_framebuffer);
 	glReadBuffer(prev_read_buffer);
+	if (prev_scissor)
+		glEnable(GL_SCISSOR_TEST);
+	else
+		glDisable(GL_SCISSOR_TEST);
+	glScissor(prev_scissor_box[0], prev_scissor_box[1], prev_scissor_box[2], prev_scissor_box[3]);
 
 	for (int eye = 0; eye < 2; eye++)
 	{
