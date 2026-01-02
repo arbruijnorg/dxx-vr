@@ -1676,7 +1676,7 @@ void render_frame(fix eye_offset, int window_num)
 			vms_matrix combined;
 			vms_vector head_world;
 			vm_matrix_x_matrix(&combined, &base_orient, &head_orient);
-			vm_vec_rotate(&head_world, &head_pos, &Viewer->orient);
+			vm_vec_rotate(&head_world, &head_pos, &base_orient);
 			vm_vec_add2(&Viewer_eye, &head_world);
 			base_orient = combined;
 		}
