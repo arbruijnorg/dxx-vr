@@ -233,11 +233,38 @@ fix vr_openvr_eye_offset(int eye)
 
 	vr::Hmd_Eye vr_eye = (eye == 0) ? vr::Eye_Left : vr::Eye_Right;
 	vr::HmdMatrix34_t eye_to_head = vr_system->GetEyeToHeadTransform(vr_eye);
-	float offset_m = -eye_to_head.m[0][3];
+	float offset_m = eye_to_head.m[0][3];
 	return fl2f(offset_m);
 #else
 	(void)eye;
 	return 0;
+#endif
+}
+
+void vr_openvr_render_size(int *width, int *height)
+{
+#ifdef USE_OPENVR
+#ifdef OGL
+	if (!vr_openvr_active() || !vr_gl_ready)
+	{
+		if (width)
+			*width = 0;
+		if (height)
+			*height = 0;
+		return;
+	}
+
+	if (width)
+		*width = (int)vr_render_width;
+	if (height)
+		*height = (int)vr_render_height;
+#else
+	(void)width;
+	(void)height;
+#endif
+#else
+	(void)width;
+	(void)height;
 #endif
 }
 
