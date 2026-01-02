@@ -955,6 +955,8 @@ static void game_render_frame_vr(void)
 {
 	int prev_w = Screen_3d_window.cv_bitmap.bm_w;
 	int prev_h = Screen_3d_window.cv_bitmap.bm_h;
+	int prev_screen_w = grd_curscreen->sc_w;
+	int prev_screen_h = grd_curscreen->sc_h;
 	int vr_w = 0;
 	int vr_h = 0;
 
@@ -965,6 +967,8 @@ static void game_render_frame_vr(void)
 		Screen_3d_window.cv_bitmap.bm_w = vr_w;
 		Screen_3d_window.cv_bitmap.bm_h = vr_h;
 		Screen_3d_window.cv_bitmap.bm_rowsize = vr_w;
+		grd_curscreen->sc_w = vr_w;
+		grd_curscreen->sc_h = vr_h;
 	}
 
 	for (int eye = 0; eye < 2; eye++)
@@ -979,6 +983,8 @@ static void game_render_frame_vr(void)
 	Screen_3d_window.cv_bitmap.bm_w = prev_w;
 	Screen_3d_window.cv_bitmap.bm_h = prev_h;
 	Screen_3d_window.cv_bitmap.bm_rowsize = prev_w;
+	grd_curscreen->sc_w = prev_screen_w;
+	grd_curscreen->sc_h = prev_screen_h;
 }
 
 void toggle_cockpit()
