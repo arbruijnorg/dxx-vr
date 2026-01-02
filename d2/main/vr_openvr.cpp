@@ -10,9 +10,7 @@
 
 #include "args.h"
 #include "config.h"
-extern "C" {
 #include "console.h"
-}
 #include "inferno.h"
 #include "gr.h"
 
@@ -58,8 +56,14 @@ static void vr_openvr_init_render_targets(void)
 	if (!vr_initialized || vr_gl_ready)
 		return;
 
-	vr_render_width = (uint32_t)grd_curscreen->sc_w;
-	vr_render_height = (uint32_t)grd_curscreen->sc_h;
+	if (vr_system) {
+		vr_system->GetRecommendedRenderTargetSize(&vr_render_width, &vr_render_height);
+	}
+	if (vr_render_width == 0 || vr_render_height == 0)
+	{
+		vr_render_width = (uint32_t)grd_curscreen->sc_w;
+		vr_render_height = (uint32_t)grd_curscreen->sc_h;
+	}
 
 	for (int eye = 0; eye < 2; eye++)
 	{
@@ -79,6 +83,15 @@ static void vr_openvr_init_render_targets(void)
 		glBindFramebuffer(GL_FRAMEBUFFER, vr_eye_fbo[eye]);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vr_eye_color[eye], 0);
 		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, vr_eye_depth[eye]);
+
+		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		{
+			con_printf(CON_NORMAL, "OpenVR framebuffer incomplete for eye %d.\n", eye);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			vr_openvr_release_gl();
+			GameCfg.VREnabled = 0;
+			return;
+		}
 	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -267,8 +280,8 @@ void vr_openvr_submit_eyes(void)
 	if (!vr_openvr_active() || !vr_compositor || !vr_gl_ready)
 		return;
 
-	vr::Texture_t left = {(void *)(uintptr_t)vr_eye_color[0], vr::TextureType_OpenGL, vr::ColorSpace_Gamma};
-	vr::Texture_t right = {(void *)(uintptr_t)vr_eye_color[1], vr::TextureType_OpenGL, vr::ColorSpace_Gamma};
+	vr::Texture_t left = {(void *)(uintptr_t)vr_eye_color[0], vr::TextureType_OpenGL, vr::ColorSpace_Auto};
+	vr::Texture_t right = {(void *)(uintptr_t)vr_eye_color[1], vr::TextureType_OpenGL, vr::ColorSpace_Auto};
 	vr_compositor->Submit(vr::Eye_Left, &left);
 	vr_compositor->Submit(vr::Eye_Right, &right);
 
@@ -287,6 +300,7 @@ void vr_openvr_submit_mono_from_screen(void)
 	if (!vr_openvr_active() || !vr_gl_ready || !vr_compositor)
 		return;
 
+	vr_openvr_begin_frame();
 	glBindTexture(GL_TEXTURE_2D, vr_menu_tex);
 	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, vr_render_width, vr_render_height);
 
