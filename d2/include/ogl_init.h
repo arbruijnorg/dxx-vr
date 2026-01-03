@@ -87,7 +87,9 @@ int ogl_init_window(int x, int y);//create a window/switch modes/etc
 #define OGL_FLAG_NOCOLOR (1 << 1)
 #define OGL_FLAG_ALPHA (1 << 31) // not required for ogl_loadbmtexture, since it uses the BM_FLAG_TRANSPARENT, but is needed for ogl_init_texture.
 void ogl_loadbmtexture_f(grs_bitmap *bm, int texfilt);
+void ogl_freetexture(ogl_texture *gltexture);
 void ogl_freebmtexture(grs_bitmap *bm);
+int ogl_loadtexture(unsigned char *data, int dxo, int dyo, ogl_texture *tex, int bm_flags, int data_format, int texfilt);
 
 void ogl_start_frame(void);
 void ogl_end_frame(void);
