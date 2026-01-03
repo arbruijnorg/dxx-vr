@@ -3,6 +3,8 @@ DXX-Redux
 
 Descent 1&2 source port based on [DXX-Retro](https://github.com/CDarrow/DXX-Retro).
 
+This has been built/tested against Debian Linux 14 but should work on other platforms.
+
 Building in Visual Studio
 -------------------------
 
@@ -34,17 +36,17 @@ Building in msys2 / Linux
 
   - Debian/Ubuntu
 
-    `apt install build-essential git cmake libphysfs-dev libsdl1.2-dev libsdl-mixer1.2-dev libpng-dev
-    libglew-dev`
+    `apt install build-essential git cmake libphysfs-dev libsdl2-dev libsdl2-mixer-dev libpng-dev
+    libglew-dev libopenvr-dev`
 
   - Fedora
 
-    `dnf install make gcc-c++ git cmake physfs-devel sdl12-compat-devel SDL_mixer-devel libpng-devel
+    `dnf install make gcc-c++ git cmake physfs-devel sdl2-devel libsdl2-mixer-devel libpng-devel
     glew-devel`
 
   - Arch Linux
 
-    `pacman -S base-devel git cmake physfs sdl12-compat sdl_mixer libpng glew`
+    `pacman -S base-devel git cmake physfs sdl2 sdl2-mixer libpng glew`
 
 - Get the source code from github
 
