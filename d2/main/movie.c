@@ -51,8 +51,10 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "physfsrwops.h"
 #ifdef OGL
 #include "ogl_init.h"
+#include "internal.h"
 #endif
 #include "args.h"
+#include "vr_openvr.h"
 
 extern char CDROM_dir[];
 
@@ -212,6 +214,23 @@ void MovieShowFrame(ubyte *buf, int dstx, int dsty, int bufw, int bufh, int sw, 
 		bufw, bufh, 0, 0, &source_bm,&grd_curcanv->cv_bitmap,GameCfg.MovieTexFilt);
 
 	glEnable (GL_BLEND);
+#ifdef USE_OPENVR
+	if (vr_openvr_active() && Screen_mode == SCREEN_MOVIE)
+	{
+		ogl_texture movie_tex;
+
+		ogl_init_texture(&movie_tex, bufw, bufh, OGL_FLAG_ALPHA);
+		movie_tex.prio = 0.0f;
+		movie_tex.lw = source_bm.bm_rowsize;
+
+		ogl_pal = gr_current_pal;
+		ogl_loadtexture(source_bm.bm_data, 0, 0, &movie_tex, source_bm.bm_flags, 0, GameCfg.MovieTexFilt);
+		ogl_pal = gr_palette;
+
+		vr_openvr_submit_mono_from_texture(movie_tex.handle, movie_tex.u, movie_tex.v, 1);
+		ogl_freetexture(&movie_tex);
+	}
+#endif
 #else
 	gr_bm_ubitbltm(bufw,bufh,dstx,dsty,0,0,&source_bm,&grd_curcanv->cv_bitmap);
 #endif

@@ -24,6 +24,7 @@ void vr_openvr_bind_eye(int eye);
 void vr_openvr_unbind_eye(void);
 void vr_openvr_submit_eyes(void);
 void vr_openvr_submit_mono_from_screen(int curved);
+void vr_openvr_submit_mono_from_texture(unsigned int texture, float u, float v, int curved);
 
 #ifdef __cplusplus
 }
