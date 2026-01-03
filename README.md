@@ -5,6 +5,12 @@ Descent 1&2 source port based on [DXX-Retro](https://github.com/CDarrow/DXX-Retr
 
 This has been built/tested against Debian Linux 14 but should work on other platforms.
 
+Status
+-------------------------
+VR Cutscene support - Complete
+VR Gameplay - WIP graphical issues with HUD/Render order.
+VR Menu Support - WIP/Not Working.
+
 Building in Visual Studio
 -------------------------
 
