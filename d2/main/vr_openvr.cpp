@@ -9,11 +9,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+extern "C" {
 #include "args.h"
 #include "config.h"
 #include "console.h"
 #include "inferno.h"
 #include "gr.h"
+extern int last_width, last_height;
+const vms_matrix vmd_identity_matrix = IDENTITY_MATRIX;
+}
 
 #ifdef OGL
 #include <GL/glew.h>
@@ -778,7 +782,6 @@ void vr_openvr_bind_menu_target(void)
 	if (!vr_openvr_active() || !vr_gl_ready || !vr_menu_fbo)
 		return;
 		
-	extern int last_width, last_height;
 	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &vr_prev_fbo);
 	glGetIntegerv(GL_VIEWPORT, vr_prev_viewport);
 	vr_prev_canvas_width = Canvas_width;
