@@ -650,6 +650,7 @@ static void vr_openvr_submit_mono_from_buffer(int curved, int read_front)
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, vr_eye_fbo[eye]);
 		glViewport(0, 0, vr_render_width, vr_render_height);
+		glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		if (curved)
 			vr_openvr_draw_curved_quad(vr_menu_tex, 1.0f, 1.0f, eye);
@@ -746,6 +747,7 @@ void vr_openvr_submit_mono_from_screen(int curved)
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, vr_eye_fbo[eye]);
 		glViewport(0, 0, vr_render_width, vr_render_height);
+		glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		if (curved)
 			vr_openvr_draw_curved_quad(vr_menu_tex, 1.0f, 1.0f, eye);
@@ -794,6 +796,7 @@ void vr_openvr_bind_menu_target(void)
 	Canvas_height = (int)vr_render_height;
 	last_width = (int)vr_render_width;
 	last_height = (int)vr_render_height;
+	glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 #endif
 #endif
@@ -841,6 +844,7 @@ void vr_openvr_submit_mono_from_texture(unsigned int texture, float u, float v, 
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, vr_eye_fbo[eye]);
 		glViewport(0, 0, vr_render_width, vr_render_height);
+		glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		if (curved)
 			vr_openvr_draw_curved_quad(texture, u, v, eye);
