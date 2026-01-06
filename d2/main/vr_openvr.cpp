@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "args.h"
 #include "config.h"
@@ -28,11 +29,20 @@ static bool vr_gl_ready = false;
 static GLuint vr_eye_fbo[2] = {0, 0};
 static GLuint vr_eye_color[2] = {0, 0};
 static GLuint vr_eye_depth[2] = {0, 0};
+static GLuint vr_menu_fbo = 0;
 static GLuint vr_menu_tex = 0;
+static uint8_t *vr_menu_pixels = NULL;
+static size_t vr_menu_pixels_size = 0;
 static uint32_t vr_render_width = 0;
 static uint32_t vr_render_height = 0;
 static GLint vr_prev_fbo = 0;
 static GLint vr_prev_viewport[4] = {0, 0, 0, 0};
+static int Canvas_width = 0;
+static int Canvas_height = 0;
+static int vr_prev_canvas_width = 0;
+static int vr_prev_canvas_height = 0;
+static int vr_prev_last_width = 0;
+static int vr_prev_last_height = 0;
 static float vr_eye_offset_adjust_m = 0.0f;
 static int vr_current_eye = -1;
 static bool vr_has_pose = false;
@@ -47,12 +57,17 @@ static void vr_openvr_release_gl(void)
 	glDeleteFramebuffers(2, vr_eye_fbo);
 	glDeleteTextures(2, vr_eye_color);
 	glDeleteRenderbuffers(2, vr_eye_depth);
+	glDeleteFramebuffers(1, &vr_menu_fbo);
 	glDeleteTextures(1, &vr_menu_tex);
 
 	vr_eye_fbo[0] = vr_eye_fbo[1] = 0;
 	vr_eye_color[0] = vr_eye_color[1] = 0;
 	vr_eye_depth[0] = vr_eye_depth[1] = 0;
+	vr_menu_fbo = 0;
 	vr_menu_tex = 0;
+	free(vr_menu_pixels);
+	vr_menu_pixels = NULL;
+	vr_menu_pixels_size = 0;
 	vr_gl_ready = false;
 }
 
@@ -109,6 +124,17 @@ static void vr_openvr_init_render_targets(void)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, vr_render_width, vr_render_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 
+	glGenFramebuffers(1, &vr_menu_fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, vr_menu_fbo);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, vr_menu_tex, 0);
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		con_printf(CON_NORMAL, "OpenVR framebuffer incomplete for menu.\n");
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		vr_openvr_release_gl();
+		GameCfg.VREnabled = 0;
+		return;
+	}
 	vr_gl_ready = true;
 }
 
@@ -229,7 +255,6 @@ static void vr_openvr_draw_flat_quad(GLuint texture, float tex_u_max, float tex_
 	{
 		glDisable(GL_TEXTURE_2D);
 	}
-		glDisable(GL_TEXTURE_2D);
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
 	glBegin(GL_TRIANGLE_STRIP);
@@ -339,9 +364,9 @@ void vr_openvr_begin_frame(void)
 		vr_head_orient.fvec.x = fl2f(mat.m[2][0]);
 		vr_head_orient.fvec.y = fl2f(mat.m[2][1]);
 		vr_head_orient.fvec.z = -fl2f(mat.m[2][2]);
-		vr_head_pos.x = -fl2f(mat.m[0][3]);
-		vr_head_pos.y = -fl2f(mat.m[1][3]);
-		vr_head_pos.z = fl2f(mat.m[2][3]);
+		vr_head_pos.x = fl2f(mat.m[0][3]);
+		vr_head_pos.y = fl2f(mat.m[1][3]);
+		vr_head_pos.z = -fl2f(mat.m[2][3]);
 		vr_has_pose = true;
 	}
 	else
@@ -527,7 +552,7 @@ void vr_openvr_submit_eyes(void)
 #endif
 }
 
-void vr_openvr_submit_mono_from_screen(int curved)
+static void vr_openvr_submit_mono_from_buffer(int curved, int read_front)
 {
 #ifdef USE_OPENVR
 #ifdef OGL
@@ -535,18 +560,53 @@ void vr_openvr_submit_mono_from_screen(int curved)
 		return;
 
 	vr_openvr_begin_frame();
-	GLint prev_framebuffer = 0;
+	GLint prev_draw_fbo = 0;
+	GLint prev_read_fbo = 0;
 	GLint prev_read_buffer = GL_BACK;
+	GLint prev_draw_buffer = GL_BACK;
+	GLint prev_pack_alignment = 4;
+	GLint prev_unpack_alignment = 4;
 	GLboolean prev_scissor = GL_FALSE;
 	GLint prev_scissor_box[4] = {0, 0, 0, 0};
 	GLint double_buffer = 0;
-	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_framebuffer);
+#ifdef GL_DRAW_FRAMEBUFFER_BINDING
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prev_draw_fbo);
+	glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prev_read_fbo);
+#else
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_draw_fbo);
+	prev_read_fbo = prev_draw_fbo;
+#endif
 	glGetIntegerv(GL_READ_BUFFER, &prev_read_buffer);
+	glGetIntegerv(GL_DRAW_BUFFER, &prev_draw_buffer);   
+	glGetIntegerv(GL_PACK_ALIGNMENT, &prev_pack_alignment);
+	glGetIntegerv(GL_UNPACK_ALIGNMENT, &prev_unpack_alignment);
 	glGetIntegerv(GL_DOUBLEBUFFER, &double_buffer);
 	prev_scissor = glIsEnabled(GL_SCISSOR_TEST);
 	glGetIntegerv(GL_SCISSOR_BOX, prev_scissor_box);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glReadBuffer(double_buffer ? GL_BACK : GL_FRONT);
+#ifdef GL_READ_FRAMEBUFFER
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#else
+	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#endif
+	if (prev_read_fbo)
+	{
+		if (prev_read_buffer == GL_NONE)
+			glReadBuffer(GL_COLOR_ATTACHMENT0);
+		else if (prev_read_buffer == GL_BACK || prev_read_buffer == GL_FRONT)
+			glReadBuffer(GL_COLOR_ATTACHMENT0);
+		else
+			glReadBuffer(prev_read_buffer);
+	}
+	else
+	{
+		GLint fallback = prev_draw_buffer;
+		if (prev_read_buffer != GL_NONE)
+			glReadBuffer(prev_read_buffer);
+		else if (fallback != GL_NONE)
+			glReadBuffer(fallback);
+		else
+			glReadBuffer(double_buffer ? GL_BACK : GL_FRONT);
+	}
 	glDisable(GL_SCISSOR_TEST);
 	glFlush();
 	glBindTexture(GL_TEXTURE_2D, vr_menu_tex);
@@ -556,8 +616,25 @@ void vr_openvr_submit_mono_from_screen(int curved)
 		copy_width = grd_curscreen->sc_w;
 	if (copy_height > grd_curscreen->sc_h)
 		copy_height = grd_curscreen->sc_h;
-	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, copy_width, copy_height);
-	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_framebuffer);
+	size_t copy_size = (size_t)copy_width * (size_t)copy_height * 4;
+	if (copy_size > vr_menu_pixels_size)
+	{
+		uint8_t *new_pixels = (uint8_t *)realloc(vr_menu_pixels, copy_size);
+		if (new_pixels)
+		{
+			vr_menu_pixels = new_pixels;
+			vr_menu_pixels_size = copy_size;
+		}
+	}
+	if (vr_menu_pixels && copy_size > 0)
+	{
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		glReadPixels(0, 0, copy_width, copy_height, GL_RGBA, GL_UNSIGNED_BYTE, vr_menu_pixels);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, copy_width, copy_height, GL_RGBA, GL_UNSIGNED_BYTE, vr_menu_pixels);
+	}
+	glPixelStorei(GL_PACK_ALIGNMENT, prev_pack_alignment);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, prev_unpack_alignment);
 	glReadBuffer(prev_read_buffer);
 	if (prev_scissor)
 		glEnable(GL_SCISSOR_TEST);
@@ -575,9 +652,176 @@ void vr_openvr_submit_mono_from_screen(int curved)
 		else
 			vr_openvr_draw_flat_quad(vr_menu_tex, 1.0f, 1.0f, eye);
 	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (prev_read_fbo)
+	{
+#ifdef GL_READ_FRAMEBUFFER
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#else
+		glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#endif
+	}
+#ifdef GL_DRAW_FRAMEBUFFER
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)prev_draw_fbo);
+#else
+	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_draw_fbo);
+#endif
 	vr_openvr_submit_eyes();
+#endif
+#endif
+}
+
+void vr_openvr_submit_mono_from_screen(int curved)
+{
+#ifdef USE_OPENVR
+#ifdef OGL
+	if (!vr_openvr_active() || !vr_gl_ready || !vr_compositor)
+		return;
+
+	vr_openvr_begin_frame();
+	GLint prev_draw_fbo = 0;
+	GLint prev_read_fbo = 0;
+	GLint prev_read_buffer = GL_BACK;
+	GLint prev_draw_buffer = GL_BACK;
+	GLboolean prev_scissor = GL_FALSE;
+	GLint prev_scissor_box[4] = {0, 0, 0, 0};
+	GLint double_buffer = 0;
+#ifdef GL_DRAW_FRAMEBUFFER_BINDING
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prev_draw_fbo);
+	glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prev_read_fbo);
+#else
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_draw_fbo);
+	prev_read_fbo = prev_draw_fbo;
+#endif
+	glGetIntegerv(GL_READ_BUFFER, &prev_read_buffer);
+	glGetIntegerv(GL_DRAW_BUFFER, &prev_draw_buffer);
+	glGetIntegerv(GL_DOUBLEBUFFER, &double_buffer);
+	prev_scissor = glIsEnabled(GL_SCISSOR_TEST);
+	glGetIntegerv(GL_SCISSOR_BOX, prev_scissor_box);
+#ifdef GL_READ_FRAMEBUFFER
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#else
+	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#endif
+	if (prev_read_fbo)
+	{
+			if (prev_read_buffer == GL_NONE)
+			glReadBuffer(GL_COLOR_ATTACHMENT0);
+			else if (prev_read_buffer == GL_BACK || prev_read_buffer == GL_FRONT)
+			glReadBuffer(GL_COLOR_ATTACHMENT0);
+		    else
+			glReadBuffer(prev_read_buffer);
+	}
+	else
+	{
+		GLint fallback = prev_draw_buffer;
+		if (prev_read_buffer != GL_NONE)
+			glReadBuffer(prev_read_buffer);
+		else if (fallback != GL_NONE)
+			glReadBuffer(fallback);
+		else
+			glReadBuffer(double_buffer ? GL_BACK : GL_FRONT);
+	}
+	glDisable(GL_SCISSOR_TEST);
+	glFlush();
+	glBindTexture(GL_TEXTURE_2D, vr_menu_tex);
+	GLint copy_width = (GLint)vr_render_width;
+	GLint copy_height = (GLint)vr_render_height;
+	if (copy_width > grd_curscreen->sc_w)
+		copy_width = grd_curscreen->sc_w;
+	if (copy_height > grd_curscreen->sc_h)
+		copy_height = grd_curscreen->sc_h;
+	glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, copy_width, copy_height);
+	glReadBuffer(prev_read_buffer);
+	if (prev_scissor)
+		glEnable(GL_SCISSOR_TEST);
+	else
+		glDisable(GL_SCISSOR_TEST);
+	glScissor(prev_scissor_box[0], prev_scissor_box[1], prev_scissor_box[2], prev_scissor_box[3]);
+
+	for (int eye = 0; eye < 2; eye++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, vr_eye_fbo[eye]);
+		glViewport(0, 0, vr_render_width, vr_render_height);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		if (curved)
+			vr_openvr_draw_curved_quad(vr_menu_tex, 1.0f, 1.0f, eye);
+		else
+			vr_openvr_draw_flat_quad(vr_menu_tex, 1.0f, 1.0f, eye);
+	}
+	if (prev_read_fbo)
+	{
+#ifdef GL_READ_FRAMEBUFFER
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#else
+		glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_read_fbo);
+#endif
+	}
+#ifdef GL_DRAW_FRAMEBUFFER
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)prev_draw_fbo);
+#else
+	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_draw_fbo);
+#endif
+	vr_openvr_submit_eyes();
+#endif
+#endif
+}
+
+void vr_openvr_submit_mono_from_frontbuffer(int curved)
+{
+	vr_openvr_submit_mono_from_buffer(curved, 1);
+}
+
+void vr_openvr_bind_menu_target(void)
+{
+#ifdef USE_OPENVR
+#ifdef OGL
+	if (!vr_openvr_active() || !vr_gl_ready || !vr_menu_fbo)
+		return;
+		
+	extern int last_width, last_height;
+	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &vr_prev_fbo);
+	glGetIntegerv(GL_VIEWPORT, vr_prev_viewport);
+	vr_prev_canvas_width = Canvas_width;
+	vr_prev_canvas_height = Canvas_height;
+	vr_prev_last_width = last_width;
+	vr_prev_last_height = last_height;
+	glBindFramebuffer(GL_FRAMEBUFFER, vr_menu_fbo);
+	glViewport(0, 0, vr_render_width, vr_render_height);
+	Canvas_width = (int)vr_render_width;
+	Canvas_height = (int)vr_render_height;
+	last_width = (int)vr_render_width;
+	last_height = (int)vr_render_height;
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+#endif
+#endif
+}
+
+void vr_openvr_unbind_menu_target(void)
+{
+#ifdef USE_OPENVR
+#ifdef OGL
+	if (!vr_openvr_active() || !vr_gl_ready)
+		return;
+
+	extern int last_width, last_height;
+	glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)vr_prev_fbo);
+	glViewport(vr_prev_viewport[0], vr_prev_viewport[1], vr_prev_viewport[2], vr_prev_viewport[3]);
+	Canvas_width = vr_prev_canvas_width;
+	Canvas_height = vr_prev_canvas_height;
+	last_width = vr_prev_last_width;
+	last_height = vr_prev_last_height;
+#endif
+#endif
+}
+
+void vr_openvr_submit_menu(int curved)
+{
+#ifdef USE_OPENVR
+#ifdef OGL
+	if (!vr_openvr_active() || !vr_gl_ready || !vr_menu_tex)
+		return;
+
+	vr_openvr_submit_mono_from_texture(vr_menu_tex, 1.0f, 1.0f, curved);
 #endif
 #endif
 }

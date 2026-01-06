@@ -36,6 +36,7 @@
 #include "console.h"
 #include "u_mem.h"
 #include "vr_openvr.h"
+#include "titles.h"
 #ifdef HAVE_LIBPNG
 #include "pngfile.h"
 #endif
@@ -1224,7 +1225,7 @@ void gr_flip(void)
 
 	ogl_do_palfx();
 #ifdef USE_OPENVR
-	if (vr_openvr_active() && Screen_mode != SCREEN_GAME && Screen_mode != SCREEN_MOVIE)
+	if (vr_openvr_active() && Screen_mode != SCREEN_GAME && (Screen_mode != SCREEN_MOVIE || VR_briefing_active))
 		vr_openvr_submit_mono_from_screen(Screen_mode == SCREEN_MOVIE);
 #endif
 	ogl_swap_buffers_internal();

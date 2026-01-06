@@ -876,7 +876,7 @@ static void game_render_frame_eye(fix eye_offset)
 
 	if (Guided_missile[Player_num] && Guided_missile[Player_num]->type==OBJ_WEAPON && Guided_missile[Player_num]->id==GUIDEDMISS_ID && Guided_missile[Player_num]->signature==Guided_missile_sig[Player_num] && PlayerCfg.GuidedInBigWindow) {
 		object *viewer_save = Viewer;
-
+		con_printf(CON_NORMAL,"Rear View Mode: %d\n", Rear_view);
 		if (PlayerCfg.CurrentCockpitMode==CM_FULL_COCKPIT || PlayerCfg.CurrentCockpitMode==CM_REAR_VIEW)
 		{
 			 BigWindowSwitch=1;
@@ -911,6 +911,7 @@ static void game_render_frame_eye(fix eye_offset)
 		if (BigWindowSwitch)
 		{
 			force_cockpit_redraw=1;
+	                con_printf(CON_NORMAL,"Rear View Mode: %d\n", Rear_view);
 			PlayerCfg.CurrentCockpitMode=(Rear_view?CM_REAR_VIEW:CM_FULL_COCKPIT);
 			BigWindowSwitch=0;
 			return;

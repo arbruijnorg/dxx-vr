@@ -14,6 +14,10 @@
 #include "timer.h"
 #include "config.h"
 #include "args.h"
+#ifdef OGL
+#include "titles.h"
+#include "vr_openvr.h"
+#endif
 
 #include "joy.h"
 
@@ -214,6 +218,10 @@ void event_process(void)
 	}
 
 	gr_flip();
+#ifdef OGL
+	if (VR_briefing_active)
+		vr_openvr_submit_mono_from_screen(1);
+#endif
 }
 
 void event_toggle_focus(int activate_focus)

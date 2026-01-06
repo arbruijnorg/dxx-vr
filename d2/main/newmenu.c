@@ -60,6 +60,9 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "rbaudio.h"
 #include "args.h"
 #include "gamepal.h"
+#ifdef USE_OPENVR
+#include "vr_openvr.h"
+#endif
 
 #ifdef OGL
 #include "ogl_init.h"
@@ -1479,7 +1482,13 @@ int newmenu_draw(window *wind, newmenu *menu)
 	}
 
 	gr_set_current_canvas(save_canvas);
-
+#ifdef USE_OPENVR
+#ifdef OGL
+	if (Screen_mode == SCREEN_MENU && vr_openvr_active())
+		vr_openvr_submit_mono_from_screen(1);
+//		vr_openvr_submit_mono_from_frontbuffer(1);
+#endif
+#endif
 	return 1;
 }
 

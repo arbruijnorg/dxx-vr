@@ -26,6 +26,7 @@ extern void do_briefing_screens(char *filename, int level_num);
 extern void do_end_briefing_screens(char *filename);
 extern char * get_briefing_screen( int level_num );
 extern void show_endgame_briefing(void);
+extern int VR_briefing_active;
 extern void show_order_form(void);
 
 #endif

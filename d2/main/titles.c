@@ -49,6 +49,9 @@ COPYRIGHT 1993-1999 PARALLAX SOFTWARE CORPORATION.  ALL RIGHTS RESERVED.
 #include "mouse.h"
 #include "console.h"
 #include "args.h"
+#ifdef USE_OPENVR
+#include "vr_openvr.h"
+#endif
 #ifdef OGL
 #include "ogl_init.h"
 #endif
@@ -67,6 +70,15 @@ int DefineBriefingBox (char **buf);
 int	Briefing_text_colors[MAX_BRIEFING_COLORS];
 int	Current_color = 0;
 int	Erase_color;
+int	VR_briefing_active = 0;
+#ifdef USE_OPENVR
+#ifdef OGL
+static GLuint briefing_fbo = 0;
+static GLuint briefing_tex = 0;
+static int briefing_tex_w = 0;
+static int briefing_tex_h = 0;
+#endif
+#endif
 
 // added by Jan Bobrowski for variable-size menu screen
 static int rescale_x(int x)
@@ -79,6 +91,46 @@ static int rescale_y(int y)
 	return y * GHEIGHT / 200;
 }
 
+#ifdef USE_OPENVR
+#ifdef OGL
+static void briefing_release_gl(void)
+{
+	if (briefing_fbo)
+		glDeleteFramebuffers(1, &briefing_fbo);
+	if (briefing_tex)
+		glDeleteTextures(1, &briefing_tex);
+	briefing_fbo = 0;
+	briefing_tex = 0;
+	briefing_tex_w = 0;
+	briefing_tex_h = 0;
+}
+
+static void briefing_ensure_gl_target(int w, int h)
+{
+	if (!briefing_fbo || !briefing_tex || briefing_tex_w != w || briefing_tex_h != h)
+	{
+		briefing_release_gl();
+
+		glGenFramebuffers(1, &briefing_fbo);
+		glBindFramebuffer(GL_FRAMEBUFFER, briefing_fbo);
+
+		glGenTextures(1, &briefing_tex);
+		glBindTexture(GL_TEXTURE_2D, briefing_tex);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, briefing_tex, 0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		briefing_tex_w = w;
+		briefing_tex_h = h;
+	}
+}
+#endif
+#endif
 typedef struct title_screen
 {
 	grs_bitmap title_bm;
@@ -1333,7 +1385,19 @@ int briefing_handler(window *wind, d_event *event, briefing *br)
 			gr_set_current_canvas(NULL);
 
 			timer_delay2(50);
-
+#ifdef USE_OPENVR
+#ifdef OGL
+			GLint prev_fbo = 0;
+			if (vr_openvr_active())
+			{
+				glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
+				briefing_ensure_gl_target(grd_curscreen->sc_w, grd_curscreen->sc_h);
+				glBindFramebuffer(GL_FRAMEBUFFER, briefing_fbo);
+				glViewport(0, 0, briefing_tex_w, briefing_tex_h);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
+#endif
+#endif
 			if (!(br->new_screen || br->new_page))
 				while (!briefing_process_char(br) && !br->delay_count)
 				{
@@ -1364,10 +1428,24 @@ int briefing_handler(window *wind, d_event *event, briefing *br)
 				flash_cursor(br, br->flashing_cursor);
 			else if (br->flashing_cursor)
 				gr_printf(br->text_x, br->text_y, "_");
+#ifdef USE_OPENVR
+#ifdef OGL
+			if (vr_openvr_active())
+			{
+				glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prev_fbo);
+				vr_openvr_submit_mono_from_texture(briefing_tex, 1.0f, 1.0f, 1);
+			}
+#endif
+#endif
 			break;
 
 		case EVENT_WINDOW_CLOSE:
 			free_briefing_screen(br);
+#ifdef USE_OPENVR
+#ifdef OGL
+			briefing_release_gl();
+#endif
+#endif
 			if (br->hum_channel>-1)
 			{
 				digi_stop_sound( br->hum_channel );
