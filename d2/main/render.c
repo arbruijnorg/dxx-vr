@@ -1693,8 +1693,12 @@ void render_frame(fix eye_offset, int window_num)
 					vm_matrix_x_matrix(&delta_orient, &head_orient, &last_transpose);
 				}
 				vr_last_head_orient = head_orient;
-				vm_matrix_x_matrix(&ship_orient, &ship_orient, &delta_orient);
-				Viewer->orient = ship_orient;
+				{
+					vms_matrix ship_updated;
+					vm_matrix_x_matrix(&ship_updated, &ship_orient, &delta_orient);
+					ship_orient = ship_updated;
+					Viewer->orient = ship_orient;
+				}
 				vr_head_turn_enabled_prev = 1;
 			}
 			else
@@ -1713,6 +1717,12 @@ void render_frame(fix eye_offset, int window_num)
 			vr_last_head_orient = vmd_identity_matrix;
 			vr_head_turn_enabled_prev = 0;
 		}
+	}
+	else
+	{
+		vr_head_turn_initialized = 0;
+		vr_last_head_orient = vmd_identity_matrix;
+		vr_head_turn_enabled_prev = 0;
 	}
 	else
 	{
